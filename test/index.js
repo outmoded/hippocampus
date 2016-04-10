@@ -3,8 +3,9 @@
 // Load modules
 
 const Code = require('code');
-const Lab = require('lab');
 const Hippocampus = require('..');
+const Hoek = require('hoek');
+const Lab = require('lab');
 
 
 // Declare internals
@@ -426,6 +427,44 @@ describe('Hippocampus', () => {
                     expect(err).to.exist();
                     expect(err.message).to.equal('Redis client disconnected');
                     client.disconnect(done);
+                });
+            });
+        });
+
+        describe('subscribe()', () => {
+
+            it('sends key updates', (done) => {
+
+                provision({ updates: true }, (client) => {
+
+                    const changes = [
+                        ['set', ['key', 'b', 2]],
+                        ['drop', ['key', 'b']],
+                        ['drop', ['key', 'a']]
+                    ];
+
+                    const updates = [];
+                    let count = 0;
+                    const each = (err, update) => {
+
+                        expect(err).to.not.exist();
+                        updates.push(update);
+
+                        const step = changes[count++];
+                        if (step) {
+                            client[step[0]].apply(client, step[1].concat(Hoek.ignore));
+                        }
+                        else {
+                            expect(updates).to.deep.equal([{ a: 1 }, { a: 1, b: 2 }, { a: 1 }, null]);
+                            client.disconnect(done);
+                        }
+                    };
+
+                    client.subscribe('key', each, (err) => {
+
+                        expect(err).to.not.exist();
+                        client.set('key', 'a', 1, Hoek.ignore);
+                    });
                 });
             });
         });
