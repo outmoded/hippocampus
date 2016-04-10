@@ -14,7 +14,6 @@
     "node": ">=4.x.x"
   },
   "dependencies": {
-    "boom": "3.x.x",
     "hoek": "3.x.x",
     "redis": "2.x.x"
   },
