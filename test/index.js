@@ -467,6 +467,295 @@ describe('Hippocampus', () => {
                     });
                 });
             });
+
+            it('subscribes twice to same key', (done) => {
+
+                provision({ updates: true }, (client) => {
+
+                    let received = false;
+                    const each1 = (err, update) => {
+
+                        expect(err).to.not.exist();
+                        received = true;
+                    };
+
+                    const each2 = (err, update) => {
+
+                        expect(err).to.not.exist();
+                        expect(received).to.be.true();
+                        client.disconnect(done);
+                    };
+
+                    client.subscribe('key', each1, (err) => {
+
+                        expect(err).to.not.exist();
+                        client.subscribe('key', each2, (err) => {
+
+                            expect(err).to.not.exist();
+                            client.set('key', 'a', 1, (err) => {
+
+                                expect(err).to.not.exist();
+                            });
+                        });
+                    });
+                });
+            });
+
+            it('reports expired keys', (done) => {
+
+                provision({ updates: true, ttl: 50 }, (client) => {
+
+                    const each = (err, update) => {
+
+                        expect(err).to.not.exist();
+                        expect(update).to.be.null();
+                        client.disconnect(done);
+                    };
+
+                    client.set('key', 'a', 1, (err) => {
+
+                        expect(err).to.not.exist();
+                        client.subscribe('key', each, (err) => {
+
+                            expect(err).to.not.exist();
+                        });
+                    });
+                });
+            });
+
+            it('handles evicted keys', (done) => {
+
+                provision({ updates: true }, (client) => {
+
+                    const each = (err, update) => {
+
+                        expect(err).to.not.exist();
+                        expect(update).to.be.null();
+                        client.disconnect(done);
+                    };
+
+                    client.subscribe('key', each, (err) => {
+
+                        expect(err).to.not.exist();
+                        client._subscriber.redis.emit('message', '__keyspace@0__:key', 'evicted');
+                    });
+                });
+            });
+        });
+
+        describe('unsubscribe()', () => {
+
+            it('unsubscribes key', (done) => {
+
+                provision({ updates: true }, (client) => {
+
+                    const updates1 = [];
+                    const each1 = (err, update) => {
+
+                        expect(err).to.not.exist();
+                        updates1.push(update);
+                    };
+
+                    const updates2 = [];
+                    const each2 = (err, update) => {
+
+                        expect(err).to.not.exist();
+                        updates2.push(update);
+                    };
+
+                    client.subscribe('key', each1, (err) => {
+
+                        expect(err).to.not.exist();
+                        client.subscribe('key', each2, (err) => {
+
+                            expect(err).to.not.exist();
+                            client.set('key', 'a', 1, (err) => {
+
+                                expect(err).to.not.exist();
+                                setTimeout(() => {
+
+                                    client.unsubscribe('key', each1, (err) => {
+
+                                        expect(err).to.not.exist();
+                                        client.set('key', 'a', 2, (err) => {
+
+                                            expect(err).to.not.exist();
+                                            setTimeout(() => {
+
+                                                client.unsubscribe('key', each2, (err) => {
+
+                                                    expect(err).to.not.exist();
+                                                    client.set('key', 'a', 3, (err) => {
+
+                                                        expect(err).to.not.exist();
+                                                        setTimeout(() => {
+
+                                                            expect(updates1).to.deep.equal([{ a: 1 }]);
+                                                            expect(updates2).to.deep.equal([{ a: 1 }, { a: 2 }]);
+                                                            client.disconnect(done);
+                                                        }, 50);
+                                                    });
+                                                });
+                                            }, 10);
+                                        });
+                                    });
+                                }, 10);
+                            });
+                        });
+                    });
+                });
+            });
+
+            it('unsubscribes all key subscribers', (done) => {
+
+                provision({ updates: true }, (client) => {
+
+                    const updates1 = [];
+                    const each1 = (err, update) => {
+
+                        expect(err).to.not.exist();
+                        updates1.push(update);
+                    };
+
+                    const updates2 = [];
+                    const each2 = (err, update) => {
+
+                        expect(err).to.not.exist();
+                        updates2.push(update);
+                    };
+
+                    client.subscribe('key', each1, (err) => {
+
+                        expect(err).to.not.exist();
+                        client.subscribe('key', each2, (err) => {
+
+                            expect(err).to.not.exist();
+                            client.set('key', 'a', 1, (err) => {
+
+                                expect(err).to.not.exist();
+                                setTimeout(() => {
+
+                                    client.unsubscribe('key', null, (err) => {
+
+                                        expect(err).to.not.exist();
+                                        client.set('key', 'a', 2, (err) => {
+
+                                            expect(err).to.not.exist();
+                                            setTimeout(() => {
+
+                                                expect(updates1).to.deep.equal([{ a: 1 }]);
+                                                expect(updates2).to.deep.equal([{ a: 1 }]);
+                                                client.disconnect(done);
+                                            }, 50);
+                                        });
+                                    });
+                                }, 10);
+                            });
+                        });
+                    });
+                });
+            });
+
+            it('unsubscribe from missing subscription', (done) => {
+
+                provision({ updates: true }, (client) => {
+
+                    client.unsubscribe('key', null, (err) => {
+
+                        expect(err).to.not.exist();
+                        client.disconnect(done);
+                    });
+                });
+            });
+
+            it('unsubscribe from missing subscription handler', (done) => {
+
+                provision({ updates: true }, (client) => {
+
+                    const each = function () { };
+                    client.subscribe('key', each, (err) => {
+
+                        expect(err).to.not.exist();
+                        client.unsubscribe('key', Hoek.ignore, (err) => {
+
+                            expect(err).to.not.exist();
+                            client.disconnect(done);
+                        });
+                    });
+                });
+            });
+        });
+
+        describe('_initializeUpdates()', () => {
+
+            it('ignores incoming message when no subscribers exist', (done) => {
+
+                provision({ updates: true }, (client) => {
+
+                    client._subscriber.redis.subscribe('__keyspace@0__:key');
+                    client.set('key', 'a', 1, (err) => {
+
+                        expect(err).to.not.exist();
+                        client.disconnect(done);
+                    });
+                });
+            });
+
+            it('errors on get error', (done) => {
+
+                provision({ updates: true }, (client) => {
+
+                    const each = (err, update) => {
+
+                        expect(err).to.exist();
+                        client.disconnect(done);
+                    };
+
+                    client.subscribe('key', each, (err) => {
+
+                        expect(err).to.not.exist();
+                        client.get = (key, field, next) => next(new Error('failed'));
+                        client.set('key', 'a', 1, (err) => {
+
+                            expect(err).to.not.exist();
+                        });
+                    });
+                });
+            });
+
+            it('errors on redis config error', (done) => {
+
+                const client = new Hippocampus.Client({ updates: true });
+                const orig = client._initializeUpdates;
+                client._initializeUpdates = function (callback) {
+
+                    client.redis.config = (action, key, value, next) => next(new Error('failed'));
+                    return orig.call(client, callback);
+                };
+
+                client.connect((err) => {
+
+                    expect(err).to.exist();
+                    client.disconnect(done);
+                });
+            });
+
+            it('errors on subscriber connect error', (done) => {
+
+                const client = new Hippocampus.Client({ updates: true });
+                const orig = client._initializeUpdates;
+                client._initializeUpdates = function (callback) {
+
+                    client._subscriber.settings.port = 10000;
+                    return orig.call(client, callback);
+                };
+
+                client.connect((err) => {
+
+                    expect(err).to.exist();
+                    client.disconnect(done);
+                });
+            });
         });
     });
 });
