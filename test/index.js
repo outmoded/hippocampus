@@ -308,6 +308,19 @@ describe('Hippocampus', () => {
                 });
             });
 
+            it('errors on redis publish error', (done) => {
+
+                provision({ updates: true }, (client) => {
+
+                    client.redis.publish = (channel, message, next) => next(new Error('failed'));
+                    client.set('key', 'field', 'value', (err, result) => {
+
+                        expect(err).to.exist();
+                        client.disconnect(done);
+                    });
+                });
+            });
+
             it('errors on redis hmset error', (done) => {
 
                 provision((client) => {
@@ -409,6 +422,23 @@ describe('Hippocampus', () => {
                     client.disconnect(done);
                 });
             });
+
+            it('errors on redis hdel error', (done) => {
+
+                provision((client) => {
+
+                    client.set('key', null, { a: 1, b: 2 }, (err) => {
+
+                        expect(err).to.not.exist();
+                        client.redis.hdel = (key, field, next) => next(new Error('failed'));
+                        client.drop('key', 'b', (err) => {
+
+                            expect(err).to.exist();
+                            client.disconnect(done);
+                        });
+                    });
+                });
+            });
         });
 
         describe('flush()', () => {
@@ -445,18 +475,22 @@ describe('Hippocampus', () => {
 
                     const updates = [];
                     let count = 0;
-                    const each = (err, update) => {
+                    const each = (err, update, field) => {
 
                         expect(err).to.not.exist();
-                        updates.push(update);
+                        updates.push(update || field);
 
                         const step = changes[count++];
                         if (step) {
-                            client[step[0]].apply(client, step[1].concat(Hoek.ignore));
+                            return client[step[0]].apply(client, step[1].concat(Hoek.ignore));
                         }
-                        else {
-                            expect(updates).to.deep.equal([{ a: 1 }, { a: 1, b: 2 }, { a: 1 }, null]);
-                            client.disconnect(done);
+
+                        if (count === 4) {
+                            setTimeout(() => {
+
+                                expect(updates).to.deep.equal([{ a: 1 }, { b: 2 }, 'b', null]);
+                                client.disconnect(done);
+                            }, 50);
                         }
                     };
 
@@ -538,6 +572,36 @@ describe('Hippocampus', () => {
 
                         expect(err).to.not.exist();
                         client._subscriber.redis.emit('message', '__keyspace@0__:key', 'evicted');
+                    });
+                });
+            });
+
+            it('handles disconnect while processing incoming message', (done) => {
+
+                provision({ updates: true }, (client) => {
+
+                    const changes = [
+                        ['set', ['key', 'b', 2]],
+                        ['drop', ['key', 'b']],
+                        ['drop', ['key', 'a']]
+                    ];
+
+                    let count = 0;
+                    const each = (err, update) => {
+
+                        expect(err).to.not.exist();
+                        const step = changes[count++];
+                        if (step) {
+                            return client[step[0]].apply(client, step[1].concat(Hoek.ignore));
+                        }
+
+                        client.disconnect(done);
+                    };
+
+                    client.subscribe('key', each, (err) => {
+
+                        expect(err).to.not.exist();
+                        client.set('key', 'a', 1, Hoek.ignore);
                     });
                 });
             });
@@ -696,16 +760,39 @@ describe('Hippocampus', () => {
                     client.set('key', 'a', 1, (err) => {
 
                         expect(err).to.not.exist();
-                        client.disconnect(done);
+                        client.drop('key', null, (err) => {
+
+                            expect(err).to.not.exist();
+                            setTimeout(() => {
+
+                                client.disconnect(done);
+                            }, 50);
+                        });
                     });
                 });
             });
 
-            it('errors on get error', (done) => {
+            it('ignores unknown incoming channel', (done) => {
 
                 provision({ updates: true }, (client) => {
 
-                    const each = (err, update) => {
+                    client._subscriber.redis.subscribe('x', (err) => {
+
+                        expect(err).to.not.exist();
+                        client.redis.publish('x', 'a', (err) => {
+
+                            expect(err).to.not.exist();
+                            client.disconnect(done);
+                        });
+                    });
+                });
+            });
+
+            it('errors on invalid message json', (done) => {
+
+                provision({ updates: true }, (client) => {
+
+                    const each = (err, update, field) => {
 
                         expect(err).to.exist();
                         client.disconnect(done);
@@ -714,8 +801,28 @@ describe('Hippocampus', () => {
                     client.subscribe('key', each, (err) => {
 
                         expect(err).to.not.exist();
-                        client.get = (key, field, next) => next(new Error('failed'));
-                        client.set('key', 'a', 1, (err) => {
+                        client.redis.publish('hippo_hash:key', 'hset a={', (err) => {
+
+                            expect(err).to.not.exist();
+                        });
+                    });
+                });
+            });
+
+            it('errors on invalid message encoding', (done) => {
+
+                provision({ updates: true }, (client) => {
+
+                    const each = (err, update, field) => {
+
+                        expect(err).to.exist();
+                        client.disconnect(done);
+                    };
+
+                    client.subscribe('key', each, (err) => {
+
+                        expect(err).to.not.exist();
+                        client.redis.publish('hippo_hash:key', 'hdel %a', (err) => {
 
                             expect(err).to.not.exist();
                         });
