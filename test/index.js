@@ -465,7 +465,7 @@ describe('Hippocampus', () => {
 
             it('sends key updates', (done) => {
 
-                provision({ updates: true }, (client) => {
+                provision({ updates: true, ttl: 20 }, (client) => {
 
                     const changes = [
                         ['set', ['key', 'b', 2]],
