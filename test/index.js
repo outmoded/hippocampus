@@ -19,6 +19,7 @@ const lab = exports.lab = Lab.script();
 const expect = Code.expect;
 const describe = lab.describe;
 const it = lab.test;
+const before = lab.before;
 
 
 describe('Hippocampus', () => {
@@ -43,6 +44,14 @@ describe('Hippocampus', () => {
                 });
             });
         };
+
+        before((done) => {
+
+            provision({ configure: true, updates: true }, (client) => {             // Configure cache in case first time
+
+                client.disconnect(done);
+            });
+        });
 
         describe('connect()', () => {
 
@@ -465,7 +474,7 @@ describe('Hippocampus', () => {
 
             it('sends key updates', (done) => {
 
-                provision({ updates: true, ttl: 20 }, (client) => {
+                provision({ updates: true, ttl: 20, configure: true }, (client) => {
 
                     const changes = [
                         ['set', ['key', 'b', 2]],
@@ -832,7 +841,7 @@ describe('Hippocampus', () => {
 
             it('errors on redis config error', (done) => {
 
-                const client = new Hippocampus.Client({ updates: true });
+                const client = new Hippocampus.Client({ updates: true, configure: true });
                 const orig = client._initializeUpdates;
                 client._initializeUpdates = function (callback) {
 
