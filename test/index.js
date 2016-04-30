@@ -202,58 +202,6 @@ describe('Hippocampus', () => {
 
         describe('set()', () => {
 
-            it('expires a stored field', (done) => {
-
-                provision({ ttl: 50 }, (client) => {
-
-                    client.set('key', 'field', { a: 1 }, (err) => {
-
-                        expect(err).to.not.exist();
-                        client.get('key', 'field', (err, result1) => {
-
-                            expect(err).to.not.exist();
-                            expect(result1).to.deep.equal({ field: { a: 1 } });
-
-                            setTimeout(() => {
-
-                                client.get('key', 'field', (err, result2) => {
-
-                                    expect(err).to.not.exist();
-                                    expect(result2).to.be.null();
-                                    client.disconnect(done);
-                                });
-                            }, 50);
-                        });
-                    });
-                });
-            });
-
-            it('expires a stored object', (done) => {
-
-                provision({ ttl: 50 }, (client) => {
-
-                    client.set('key', null, { a: 1 }, (err) => {
-
-                        expect(err).to.not.exist();
-                        client.get('key', 'a', (err, result1) => {
-
-                            expect(err).to.not.exist();
-                            expect(result1).to.deep.equal({ a: 1 });
-
-                            setTimeout(() => {
-
-                                client.get('key', 'field', (err, result2) => {
-
-                                    expect(err).to.not.exist();
-                                    expect(result2).to.be.null();
-                                    client.disconnect(done);
-                                });
-                            }, 50);
-                        });
-                    });
-                });
-            });
-
             it('errors on disconnected', (done) => {
 
                 const options = {
@@ -343,18 +291,54 @@ describe('Hippocampus', () => {
                     });
                 });
             });
+        });
 
-            it('errors on redis exists error', (done) => {
+        describe('expire()', () => {
 
-                provision({ ttl: 50 }, (client) => {
+            it('expires a stored field', (done) => {
 
-                    client.redis.exists = (key, next) => next(new Error('failed'));
+                provision((client) => {
 
-                    client.set('key', null, { a: 1 }, (err, result) => {
+                    client.set('key', 'field', { a: 1 }, (err) => {
 
-                        expect(err).to.exist();
-                        client.disconnect(done);
+                        expect(err).to.not.exist();
+                        client.expire('key', 50, (err) => {
+
+                            expect(err).to.not.exist();
+                            client.get('key', 'field', (err, result1) => {
+
+                                expect(err).to.not.exist();
+                                expect(result1).to.deep.equal({ field: { a: 1 } });
+
+                                setTimeout(() => {
+
+                                    client.get('key', 'field', (err, result2) => {
+
+                                        expect(err).to.not.exist();
+                                        expect(result2).to.be.null();
+                                        client.disconnect(done);
+                                    });
+                                }, 50);
+                            });
+                        });
                     });
+                });
+            });
+
+            it('errors on disconnected', (done) => {
+
+                const options = {
+                    host: '127.0.0.1',
+                    port: 6379
+                };
+
+                const client = new Hippocampus.Client(options);
+
+                client.expire('test1', 50, (err) => {
+
+                    expect(err).to.exist();
+                    expect(err.message).to.equal('Redis client disconnected');
+                    client.disconnect(done);
                 });
             });
         });
@@ -363,7 +347,7 @@ describe('Hippocampus', () => {
 
             it('increments a field', (done) => {
 
-                provision({ ttl: 50 }, (client) => {
+                provision((client) => {
 
                     client.set('key', 'field', { a: 1 }, (err) => {
 
@@ -376,16 +360,7 @@ describe('Hippocampus', () => {
 
                                 expect(err).to.not.exist();
                                 expect(result1).to.deep.equal({ field: { a: 1 }, x: 5 });
-
-                                setTimeout(() => {
-
-                                    client.get('key', null, (err, result2) => {
-
-                                        expect(err).to.not.exist();
-                                        expect(result2).to.be.null();
-                                        client.disconnect(done);
-                                    });
-                                }, 50);
+                                client.disconnect(done);
                             });
                         });
                     });
@@ -542,7 +517,7 @@ describe('Hippocampus', () => {
 
             it('sends key updates', (done) => {
 
-                provision({ updates: true, ttl: 20, configure: true }, (client) => {
+                provision({ updates: true, configure: true }, (client) => {
 
                     const changes = [
                         ['set', ['key', 'b', 2]],
@@ -576,7 +551,11 @@ describe('Hippocampus', () => {
                     client.subscribe('key', each, (err) => {
 
                         expect(err).to.not.exist();
-                        client.set('key', 'a', 1, Hoek.ignore);
+                        client.set('key', 'a', 1, (err) => {
+
+                            expect(err).to.not.exist();
+                            client.expire('key', 50, Hoek.ignore);
+                        });
                     });
                 });
             });
@@ -616,7 +595,7 @@ describe('Hippocampus', () => {
 
             it('reports expired keys', (done) => {
 
-                provision({ updates: true, ttl: 50 }, (client) => {
+                provision({ updates: true }, (client) => {
 
                     const each = (err, update) => {
 
@@ -631,6 +610,10 @@ describe('Hippocampus', () => {
                         client.subscribe('key', each, (err) => {
 
                             expect(err).to.not.exist();
+                            client.expire('key', 20, (err) => {
+
+                                expect(err).to.not.exist();
+                            });
                         });
                     });
                 });
