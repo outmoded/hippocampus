@@ -349,19 +349,37 @@ describe('Hippocampus', () => {
 
                 provision((client) => {
 
-                    client.set('key', 'field', { a: 1 }, (err) => {
+                    client.set('key', 'x', 1, (err) => {
 
                         expect(err).to.not.exist();
                         client.increment('key', 'x', 5, (err, value) => {
 
                             expect(err).to.not.exist();
-                            expect(value).to.equal(5);
+                            expect(value).to.equal(6);
                             client.get('key', null, (err, result1) => {
 
                                 expect(err).to.not.exist();
-                                expect(result1).to.deep.equal({ field: { a: 1 }, x: 5 });
+                                expect(result1).to.deep.equal({ x: 6 });
                                 client.disconnect(done);
                             });
+                        });
+                    });
+                });
+            });
+
+            it('only increments an existing field', (done) => {
+
+                provision((client) => {
+
+                    client.increment('key', 'x', 5, (err, value) => {
+
+                        expect(err).to.not.exist();
+                        expect(value).to.equal(null);
+                        client.get('key', null, (err, result1) => {
+
+                            expect(err).to.not.exist();
+                            expect(result1).to.not.exist();
+                            client.disconnect(done);
                         });
                     });
                 });
@@ -384,14 +402,14 @@ describe('Hippocampus', () => {
                 });
             });
 
-            it('errors on redis hincrby error', (done) => {
+            it('errors on redis eval error', (done) => {
 
                 provision((client) => {
 
                     client.set('key', null, { a: 1, b: 2 }, (err) => {
 
                         expect(err).to.not.exist();
-                        client.redis.hincrby = (key, field, increment, next) => next(new Error('failed'));
+                        client.redis.eval = (script, args, next) => next(new Error('failed'));
                         client.increment('key', 'b', 1, (err) => {
 
                             expect(err).to.exist();
@@ -542,19 +560,23 @@ describe('Hippocampus', () => {
                         if (count === 6) {
                             setTimeout(() => {
 
-                                expect(updates).to.deep.equal([{ a: 1 }, { b: 2 }, { c: 1 }, 'c', 'b', null]);
+                                expect(updates).to.deep.equal([{ a: 1 }, { b: 2 }, { c: 2 }, 'c', 'b', null]);
                                 client.disconnect(done);
                             }, 50);
                         }
                     };
 
-                    client.subscribe('key', each, (err) => {
+                    client.set('key', 'c', 1, (err) => {
 
                         expect(err).to.not.exist();
-                        client.set('key', 'a', 1, (err) => {
+                        client.subscribe('key', each, (err) => {
 
                             expect(err).to.not.exist();
-                            client.expire('key', 50, Hoek.ignore);
+                            client.set('key', 'a', 1, (err) => {
+
+                                expect(err).to.not.exist();
+                                client.expire('key', 50, Hoek.ignore);
+                            });
                         });
                     });
                 });
