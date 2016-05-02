@@ -137,6 +137,23 @@ describe('Hippocampus', () => {
                 });
             });
 
+            it('returns multiple fields', (done) => {
+
+                provision((client) => {
+
+                    client.set('key', null, { a: 1, b: 2 }, (err) => {
+
+                        expect(err).to.not.exist();
+                        client.get('key', ['a', 'b', 'c'], (err, result) => {
+
+                            expect(err).to.not.exist();
+                            expect(result).to.deep.equal({ a: 1, b: 2, c: null });
+                            client.disconnect(done);
+                        });
+                    });
+                });
+            });
+
             it('errors on disconnected', (done) => {
 
                 const options = {
@@ -178,6 +195,20 @@ describe('Hippocampus', () => {
                     client.redis.hget = (key, field, next) => next(new Error('failed'));
 
                     client.get('key', 'field', (err, result) => {
+
+                        expect(err).to.exist();
+                        client.disconnect(done);
+                    });
+                });
+            });
+
+            it('errors on redis hmget error', (done) => {
+
+                provision((client) => {
+
+                    client.redis.hmget = (key, field, next) => next(new Error('failed'));
+
+                    client.get('key', ['a', 'b', 'c'], (err, result) => {
 
                         expect(err).to.exist();
                         client.disconnect(done);
