@@ -542,6 +542,103 @@ describe('Hippocampus', () => {
             });
         });
 
+        describe('lock()', () => {
+
+            it('locks a key', (done) => {
+
+                provision((client) => {
+
+                    client.lock('key', 200, (err, isLocked1) => {
+
+                        expect(err).to.not.exist();
+                        expect(isLocked1).to.be.true();
+
+                        client.lock('key', 200, (err, isLocked2) => {
+
+                            expect(err).to.not.exist();
+                            expect(isLocked2).to.be.false();
+
+                            setTimeout(() => {
+
+                                client.lock('key', 200, (err, isLocked3) => {
+
+                                    expect(err).to.not.exist();
+                                    expect(isLocked3).to.be.true();
+                                    client.disconnect(done);
+                                });
+                            }, 200);
+                        });
+                    });
+                });
+            });
+
+            it('errors on disconnected', (done) => {
+
+                const options = {
+                    host: '127.0.0.1',
+                    port: 6379
+                };
+
+                const client = new Hippocampus.Client(options);
+
+                client.lock('test1', 100, (err) => {
+
+                    expect(err).to.exist();
+                    expect(err.message).to.equal('Redis client disconnected');
+                    client.disconnect(done);
+                });
+            });
+
+            it('errors on redis eval error', (done) => {
+
+                provision((client) => {
+
+                    client.redis.hget = (key, field, next) => next(new Error('failed'));
+
+                    client.redis.eval = (script, args, next) => next(new Error('failed'));
+                    client.lock('key', 100, (err, isLocked) => {
+
+                        expect(err).to.exist();
+                        expect(isLocked).to.be.false();
+                        client.disconnect(done);
+                    });
+                });
+            });
+        });
+
+        describe('unlock()', () => {
+
+            it('unlocks a key', (done) => {
+
+                provision((client) => {
+
+                    client.lock('key', 1000, (err, isLocked1) => {
+
+                        expect(err).to.not.exist();
+                        expect(isLocked1).to.be.true();
+
+                        client.lock('key', 1000, (err, isLocked2) => {
+
+                            expect(err).to.not.exist();
+                            expect(isLocked2).to.be.false();
+
+                            client.unlock('key', (err) => {
+
+                                expect(err).to.not.exist();
+
+                                client.lock('key', 200, (err, isLocked3) => {
+
+                                    expect(err).to.not.exist();
+                                    expect(isLocked3).to.be.true();
+                                    client.disconnect(done);
+                                });
+                            });
+                        });
+                    });
+                });
+            });
+        });
+
         describe('flush()', () => {
 
             it('errors on disconnected', (done) => {
@@ -897,7 +994,7 @@ describe('Hippocampus', () => {
                         client.redis.publish('x', 'a', (err) => {
 
                             expect(err).to.not.exist();
-                            client.disconnect(done);
+                            setTimeout(() => client.disconnect(done), 50);
                         });
                     });
                 });

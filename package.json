@@ -1,7 +1,7 @@
 {
   "name": "hippocampus",
   "description": "Redis-based object cache with change feed",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "author": "Eran Hammer <eran@hammer.io> (http://hueniverse.com)",
   "repository": "git://github.com/hueniverse/hippocampus",
   "main": "lib/index.js",
@@ -14,7 +14,7 @@
     "node": ">=4.x.x"
   },
   "dependencies": {
-    "hoek": "3.x.x",
+    "hoek": "4.x.x",
     "redis": "2.x.x"
   },
   "devDependencies": {
