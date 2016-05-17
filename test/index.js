@@ -383,7 +383,7 @@ describe('Hippocampus', () => {
                     client.set('key', 'x', 1, (err) => {
 
                         expect(err).to.not.exist();
-                        client.increment('key', 'x', 5, (err, value) => {
+                        client.increment('key', 'x', { increment: 5 }, (err, value) => {
 
                             expect(err).to.not.exist();
                             expect(value).to.equal(6);
@@ -398,11 +398,55 @@ describe('Hippocampus', () => {
                 });
             });
 
+            it('increments a field (max)', (done) => {
+
+                provision((client) => {
+
+                    client.set('key', 'x', 1, (err) => {
+
+                        expect(err).to.not.exist();
+                        client.increment('key', 'x', { increment: 5, maxField: 'theMax' }, (err, value) => {
+
+                            expect(err).to.not.exist();
+                            expect(value).to.equal(6);
+                            client.get('key', null, (err, result1) => {
+
+                                expect(err).to.not.exist();
+                                expect(result1).to.deep.equal({ theMax: 6, x: 6 });
+                                client.disconnect(done);
+                            });
+                        });
+                    });
+                });
+            });
+
+            it('increments a field (default)', (done) => {
+
+                provision((client) => {
+
+                    client.set('key', 'x', 1, (err) => {
+
+                        expect(err).to.not.exist();
+                        client.increment('key', 'x', {}, (err, value) => {
+
+                            expect(err).to.not.exist();
+                            expect(value).to.equal(2);
+                            client.get('key', null, (err, result1) => {
+
+                                expect(err).to.not.exist();
+                                expect(result1).to.deep.equal({ x: 2 });
+                                client.disconnect(done);
+                            });
+                        });
+                    });
+                });
+            });
+
             it('only increments an existing field', (done) => {
 
                 provision((client) => {
 
-                    client.increment('key', 'x', 5, (err, value) => {
+                    client.increment('key', 'x', { increment: 5 }, (err, value) => {
 
                         expect(err).to.not.exist();
                         expect(value).to.equal(null);
@@ -425,7 +469,7 @@ describe('Hippocampus', () => {
 
                 const client = new Hippocampus.Client(options);
 
-                client.increment('test1', 'test1', 1, (err) => {
+                client.increment('test1', 'test1', { increment: 1 }, (err) => {
 
                     expect(err).to.exist();
                     expect(err.message).to.equal('Redis client disconnected');
@@ -441,7 +485,7 @@ describe('Hippocampus', () => {
 
                         expect(err).to.not.exist();
                         client.redis.eval = (script, args, next) => next(new Error('failed'));
-                        client.increment('key', 'b', 1, (err) => {
+                        client.increment('key', 'b', { increment: 1 }, (err) => {
 
                             expect(err).to.exist();
                             client.disconnect(done);
@@ -661,13 +705,15 @@ describe('Hippocampus', () => {
 
         describe('subscribe()', () => {
 
-            it('sends key updates', (done) => {
+            it('sends key updates', (done, onCleanup) => {
 
                 provision({ updates: true, configure: true }, (client) => {
 
+                    onCleanup((next) => client.disconnect(next));
+
                     const changes = [
                         ['set', ['key', 'b', 2]],
-                        ['increment', ['key', 'c', 1]],
+                        ['increment', ['key', 'c', { increment: 1 }]],
                         ['drop', ['key', 'c']],
                         ['drop', ['key', 'b']],
                         ['drop', ['key', 'a']]
@@ -689,7 +735,7 @@ describe('Hippocampus', () => {
                             setTimeout(() => {
 
                                 expect(updates).to.deep.equal([{ a: 1 }, { b: 2 }, { c: 2 }, 'c', 'b', null]);
-                                client.disconnect(done);
+                                done();
                             }, 50);
                         }
                     };
@@ -710,9 +756,63 @@ describe('Hippocampus', () => {
                 });
             });
 
-            it('subscribes twice to same key', (done) => {
+            it('sends key updates (increment max)', (done, onCleanup) => {
+
+                provision({ updates: true, configure: true }, (client) => {
+
+                    onCleanup((next) => client.disconnect(next));
+
+                    const changes = [
+                        ['set', ['key', 'b', 2]],
+                        ['increment', ['key', 'c', { maxField: 'max' }]],
+                        ['drop', ['key', 'c']],
+                        ['drop', ['key', 'b']],
+                        ['drop', ['key', 'a']],
+                        ['drop', ['key', 'max']]
+                    ];
+
+                    const updates = [];
+                    let count = 0;
+                    const each = (err, update, field) => {
+
+                        expect(err).to.not.exist();
+                        updates.push(update || field);
+
+                        const step = changes[count++];
+                        if (step) {
+                            return client[step[0]].apply(client, step[1].concat(Hoek.ignore));
+                        }
+
+                        if (count === 7) {
+                            setTimeout(() => {
+
+                                expect(updates).to.deep.equal([{ a: 1 }, { b: 2 }, { c: 2, max: 2 }, 'c', 'b', 'a', null]);
+                                done();
+                            }, 50);
+                        }
+                    };
+
+                    client.set('key', 'c', 1, (err) => {
+
+                        expect(err).to.not.exist();
+                        client.subscribe('key', each, (err) => {
+
+                            expect(err).to.not.exist();
+                            client.set('key', 'a', 1, (err) => {
+
+                                expect(err).to.not.exist();
+                                client.expire('key', 50, Hoek.ignore);
+                            });
+                        });
+                    });
+                });
+            });
+
+            it('subscribes twice to same key', (done, onCleanup) => {
 
                 provision({ updates: true }, (client) => {
+
+                    onCleanup((next) => client.disconnect(next));
 
                     let received = false;
                     const each1 = (err, update) => {
@@ -725,7 +825,7 @@ describe('Hippocampus', () => {
 
                         expect(err).to.not.exist();
                         expect(received).to.be.true();
-                        client.disconnect(done);
+                        done();
                     };
 
                     client.subscribe('key', each1, (err) => {
@@ -743,15 +843,17 @@ describe('Hippocampus', () => {
                 });
             });
 
-            it('reports expired keys', (done) => {
+            it('reports expired keys', (done, onCleanup) => {
 
                 provision({ updates: true }, (client) => {
+
+                    onCleanup((next) => client.disconnect(next));
 
                     const each = (err, update) => {
 
                         expect(err).to.not.exist();
                         expect(update).to.be.null();
-                        client.disconnect(done);
+                        done();
                     };
 
                     client.set('key', 'a', 1, (err) => {
@@ -769,15 +871,17 @@ describe('Hippocampus', () => {
                 });
             });
 
-            it('handles evicted keys', (done) => {
+            it('handles evicted keys', (done, onCleanup) => {
 
                 provision({ updates: true }, (client) => {
+
+                    onCleanup((next) => client.disconnect(next));
 
                     const each = (err, update) => {
 
                         expect(err).to.not.exist();
                         expect(update).to.be.null();
-                        client.disconnect(done);
+                        done();
                     };
 
                     client.subscribe('key', each, (err) => {
@@ -821,9 +925,11 @@ describe('Hippocampus', () => {
 
         describe('unsubscribe()', () => {
 
-            it('unsubscribes key', (done) => {
+            it('unsubscribes key', (done, onCleanup) => {
 
                 provision({ updates: true }, (client) => {
+
+                    onCleanup((next) => client.disconnect(next));
 
                     const updates1 = [];
                     const each1 = (err, update) => {
@@ -868,7 +974,7 @@ describe('Hippocampus', () => {
 
                                                             expect(updates1).to.deep.equal([{ a: 1 }]);
                                                             expect(updates2).to.deep.equal([{ a: 1 }, { a: 2 }]);
-                                                            client.disconnect(done);
+                                                            done();
                                                         }, 50);
                                                     });
                                                 });
@@ -882,9 +988,11 @@ describe('Hippocampus', () => {
                 });
             });
 
-            it('unsubscribes all key subscribers', (done) => {
+            it('unsubscribes all key subscribers', (done, onCleanup) => {
 
                 provision({ updates: true }, (client) => {
+
+                    onCleanup((next) => client.disconnect(next));
 
                     const updates1 = [];
                     const each1 = (err, update) => {
@@ -921,7 +1029,7 @@ describe('Hippocampus', () => {
 
                                                 expect(updates1).to.deep.equal([{ a: 1 }]);
                                                 expect(updates2).to.deep.equal([{ a: 1 }]);
-                                                client.disconnect(done);
+                                                done();
                                             }, 50);
                                         });
                                     });
