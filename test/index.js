@@ -87,7 +87,7 @@ describe('Hippocampus', () => {
                         client.get('key', 'field', (err, result) => {
 
                             expect(err).to.not.exist();
-                            expect(result).to.deep.equal({ field: { a: 1 } });
+                            expect(result).to.equal({ field: { a: 1 } });
                             client.disconnect(done);
                         });
                     });
@@ -104,7 +104,7 @@ describe('Hippocampus', () => {
                         client.get('key', null, (err, result) => {
 
                             expect(err).to.not.exist();
-                            expect(result).to.deep.equal({ a: 1, b: 2 });
+                            expect(result).to.equal({ a: 1, b: 2 });
                             client.disconnect(done);
                         });
                     });
@@ -147,7 +147,7 @@ describe('Hippocampus', () => {
                         client.get('key', ['a', 'b', 'c'], (err, result) => {
 
                             expect(err).to.not.exist();
-                            expect(result).to.deep.equal({ a: 1, b: 2, c: null });
+                            expect(result).to.equal({ a: 1, b: 2, c: null });
                             client.disconnect(done);
                         });
                     });
@@ -339,7 +339,7 @@ describe('Hippocampus', () => {
                             client.get('key', 'field', (err, result1) => {
 
                                 expect(err).to.not.exist();
-                                expect(result1).to.deep.equal({ field: { a: 1 } });
+                                expect(result1).to.equal({ field: { a: 1 } });
 
                                 setTimeout(() => {
 
@@ -390,7 +390,7 @@ describe('Hippocampus', () => {
                             client.get('key', null, (err, result1) => {
 
                                 expect(err).to.not.exist();
-                                expect(result1).to.deep.equal({ x: 6 });
+                                expect(result1).to.equal({ x: 6 });
                                 client.disconnect(done);
                             });
                         });
@@ -412,7 +412,7 @@ describe('Hippocampus', () => {
                             client.get('key', null, (err, result1) => {
 
                                 expect(err).to.not.exist();
-                                expect(result1).to.deep.equal({ theMax: 6, x: 6 });
+                                expect(result1).to.equal({ theMax: 6, x: 6 });
                                 client.disconnect(done);
                             });
                         });
@@ -434,7 +434,7 @@ describe('Hippocampus', () => {
                             client.get('key', null, (err, result1) => {
 
                                 expect(err).to.not.exist();
-                                expect(result1).to.deep.equal({ x: 2 });
+                                expect(result1).to.equal({ x: 2 });
                                 client.disconnect(done);
                             });
                         });
@@ -507,7 +507,7 @@ describe('Hippocampus', () => {
                         client.get('key', null, (err, result1) => {
 
                             expect(err).to.not.exist();
-                            expect(result1).to.deep.equal({ a: 1, b: 2 });
+                            expect(result1).to.equal({ a: 1, b: 2 });
 
                             client.drop('key', 'b', (err) => {
 
@@ -515,7 +515,7 @@ describe('Hippocampus', () => {
                                 client.get('key', null, (err, result2) => {
 
                                     expect(err).to.not.exist();
-                                    expect(result2).to.deep.equal({ a: 1 });
+                                    expect(result2).to.equal({ a: 1 });
                                     client.disconnect(done);
                                 });
                             });
@@ -534,7 +534,7 @@ describe('Hippocampus', () => {
                         client.get('key', null, (err, result1) => {
 
                             expect(err).to.not.exist();
-                            expect(result1).to.deep.equal({ a: 1, b: 2 });
+                            expect(result1).to.equal({ a: 1, b: 2 });
 
                             client.drop('key', null, (err) => {
 
@@ -734,7 +734,7 @@ describe('Hippocampus', () => {
                         if (count === 6) {
                             setTimeout(() => {
 
-                                expect(updates).to.deep.equal([{ a: 1 }, { b: 2 }, { c: 2 }, 'c', 'b', null]);
+                                expect(updates).to.equal([{ a: 1 }, { b: 2 }, { c: 2 }, 'c', 'b', null]);
                                 done();
                             }, 50);
                         }
@@ -786,7 +786,7 @@ describe('Hippocampus', () => {
                         if (count === 7) {
                             setTimeout(() => {
 
-                                expect(updates).to.deep.equal([{ a: 1 }, { b: 2 }, { c: 2, max: 2 }, 'c', 'b', 'a', null]);
+                                expect(updates).to.equal([{ a: 1 }, { b: 2 }, { c: 2, max: 2 }, 'c', 'b', 'a', null]);
                                 done();
                             }, 50);
                         }
@@ -802,6 +802,39 @@ describe('Hippocampus', () => {
 
                                 expect(err).to.not.exist();
                                 client.expire('key', 50, Hoek.ignore);
+                            });
+                        });
+                    });
+                });
+            });
+
+            it('ignore deleted missing fields', (done, onCleanup) => {
+
+                provision({ updates: true, configure: true }, (client) => {
+
+                    onCleanup((next) => client.disconnect(next));
+
+                    client.set('key', null, { a: 1, b: 2 }, (err) => {
+
+                        expect(err).to.not.exist();
+
+                        const updates = [];
+                        const each = (ignoreErr, update, field) => updates.push(field);
+                        client.subscribe('key', each, (err) => {
+
+                            expect(err).to.not.exist();
+                            client.drop('key', 'a', (err) => {
+
+                                expect(err).to.not.exist();
+                                client.drop('key', 'a', (err) => {
+
+                                    expect(err).to.not.exist();
+                                    setTimeout(() => {
+
+                                        expect(updates).to.equal(['a']);
+                                        done();
+                                    }, 50);
+                                });
                             });
                         });
                     });
@@ -972,8 +1005,8 @@ describe('Hippocampus', () => {
                                                         expect(err).to.not.exist();
                                                         setTimeout(() => {
 
-                                                            expect(updates1).to.deep.equal([{ a: 1 }]);
-                                                            expect(updates2).to.deep.equal([{ a: 1 }, { a: 2 }]);
+                                                            expect(updates1).to.equal([{ a: 1 }]);
+                                                            expect(updates2).to.equal([{ a: 1 }, { a: 2 }]);
                                                             done();
                                                         }, 50);
                                                     });
@@ -1027,8 +1060,8 @@ describe('Hippocampus', () => {
                                             expect(err).to.not.exist();
                                             setTimeout(() => {
 
-                                                expect(updates1).to.deep.equal([{ a: 1 }]);
-                                                expect(updates2).to.deep.equal([{ a: 1 }]);
+                                                expect(updates1).to.equal([{ a: 1 }]);
+                                                expect(updates2).to.equal([{ a: 1 }]);
                                                 done();
                                             }, 50);
                                         });
