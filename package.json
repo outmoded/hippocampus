@@ -1,7 +1,7 @@
 {
   "name": "hippocampus",
   "description": "Redis-based object cache with change feed",
-  "version": "3.1.1",
+  "version": "3.1.2",
   "author": "Eran Hammer <eran@hammer.io> (http://hueniverse.com)",
   "repository": "git://github.com/hueniverse/hippocampus",
   "main": "lib/index.js",
@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "code": "3.x.x",
-    "lab": "10.x.x"
+    "lab": "11.x.x"
   },
   "scripts": {
     "test": "lab -a code -t 100 -L",
