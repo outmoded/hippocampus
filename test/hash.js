@@ -442,6 +442,28 @@ describe('Hippocampus', () => {
                 });
             });
 
+            it('increments a field (zero)', (done) => {
+
+                provision((client) => {
+
+                    client.set('key', 'x', 1, (err) => {
+
+                        expect(err).to.not.exist();
+                        client.increment('key', 'x', { increment: 0 }, (err, value) => {
+
+                            expect(err).to.not.exist();
+                            expect(value).to.equal(1);
+                            client.get('key', null, (err, result1) => {
+
+                                expect(err).to.not.exist();
+                                expect(result1).to.equal({ x: 1 });
+                                client.disconnect(done);
+                            });
+                        });
+                    });
+                });
+            });
+
             it('only increments an existing field', (done) => {
 
                 provision((client) => {
